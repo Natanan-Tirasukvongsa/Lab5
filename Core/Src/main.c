@@ -116,11 +116,10 @@ int main(void)
   /* USER CODE BEGIN 2 */
   uint64_t timestamp = 0;
   //start Microsec timer
-  HAL_TIM_Base_Start_IT(&htim2); //timer ทำงาน //IT = interrupt
-  HAL_TIM_Base_Start_IT(&htim5);
+  HAL_TIM_Base_Start_IT(&htim5);//timer ทำงาน //IT = interrupt
 
-  //start input capture in DMA
-    //HAL_TIM_Base_Start(&htim2);
+    HAL_TIM_Base_Start(&htim2);//open timer
+    //start input capture in DMA
     HAL_TIM_IC_Start_DMA(&htim2, TIM_CHANNEL_1, capturedata, CAPTURENUM);
 
   /* USER CODE END 2 */
@@ -402,7 +401,7 @@ void encoderSpeedReaderCycle()
 
 uint64_t micros() //เวลาปัจจุบัน
 {  //เวลาที่สะสมไว้ + ค่าปัจจุบัน
-	return _micros + htim5.Instance->CNT; //counter of timer 2
+	return _micros + htim5.Instance->CNT; //counter of timer 5
 	//register ภายใน timer = instance //CNT = counter
 }
 
