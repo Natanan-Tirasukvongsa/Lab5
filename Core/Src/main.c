@@ -32,6 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define CAPTURENUM 32 //เ�?็บข้อมูล 32 ช่องหรือเท่าไหร่�?็ได้
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -48,6 +49,17 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 
+//12 P/R, gear reduction 1:64
+//DMA Buffer
+uint32_t capturedata[CAPTURENUM] = {0}; //word capturedata
+//diff time of capture data
+int64_t DiffTime[CAPTURENUM-1] = {0};
+
+//mean difftime
+float MeanTime = 0;
+//for microsecond measurement
+uint64_t _micros = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,6 +70,9 @@ static void MX_USART2_UART_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
+void encoderSpeedReaderCycle();
+uint64_t micros();
+
 
 /* USER CODE END PFP */
 
@@ -99,6 +114,14 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
+  uint64_t timestamp = 0;
+  //start Microsec timer
+  HAL_TIM_Base_Start_IT(&htim2); //timer ทำงาน //IT = interrupt
+  HAL_TIM_Base_Start_IT(&htim5);
+
+  //start input capture in DMA
+    //HAL_TIM_Base_Start(&htim2);
+    HAL_TIM_IC_Start_DMA(&htim2, TIM_CHANNEL_1, capturedata, CAPTURENUM);
 
   /* USER CODE END 2 */
 
@@ -106,6 +129,13 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  encoderSpeedReaderCycle();
+
+	  if (micros()-timestamp > 100000)
+	  {
+		  timestamp = micros();
+		  HAL_GPIO_TogglePin(LD2_GPIO_Port,LD2_Pin);
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -343,6 +373,47 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void encoderSpeedReaderCycle()
+{
+	//get DMA Position form number of data
+	uint32_t CapPos =CAPTURENUM -  __HAL_DMA_GET_COUNTER(htim2.hdma[TIM_DMA_ID_CC1]); //ช่องปัจจุบันที่ใส่ได้ = 32 ช่อง - เหลือช่องที่ใส่ไปได้�?ี่ช่อง \\ช่องที่จะใส่ข้อมูลถัดไป
+	//__HAL_DMA_GET_COUNTER = ช่อง input capture ในที่นี้คือ htim2
+	//cappos เท่า�?ับ 8 หมายถึงเ�?็บค่าในช่อง 0 - 7
+	uint32_t sum = 0 ;
+
+	//calculate diff from all buffer
+	for(register int i=0 ;i < CAPTURENUM-1;i++)
+	{
+		DiffTime[i]  = capturedata[(CapPos+1+i)%CAPTURENUM]-capturedata[(CapPos+i)%CAPTURENUM]; //ช่องปัจจุบัน - ช่องอดีต
+		//วนครบหนึ่งรอบถึงจะขึ้นเวลา diff ป�?ติได้
+		//ถ้าครบ 1 รอบ ค่าจะคงที่
+		//time never go back, but timer can over flow , conpensate that
+		if (DiffTime[i] <0)
+		{
+			DiffTime[i]+=4294967295;
+		} //ข้อเสียคือ ถ้าช้ามา�? ๆ จะเ�?ิด�?าร overflow ไปหลายรอบทำให้เวลาไม่ตรง
+		//Sum all 31 Diff
+		sum += DiffTime[i];
+	}
+
+	//mean all 15 Diff
+	MeanTime =sum / (float)(CAPTURENUM-1);
+}
+
+uint64_t micros() //เวลาปัจจุบัน
+{  //เวลาที่สะสมไว้ + ค่าปัจจุบัน
+	return _micros + htim5.Instance->CNT; //counter of timer 2
+	//register ภายใน timer = instance //CNT = counter
+}
+
+//interrupt overflow timer
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if (htim == &htim5)
+	{
+		_micros +=4294967295;
+	}
+}
 
 /* USER CODE END 4 */
 
