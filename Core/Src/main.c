@@ -48,6 +48,7 @@ DMA_HandleTypeDef hdma_tim2_ch1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+float RPM = 0;
 
 //12 P/R, gear reduction 1:64
 //DMA Buffer
@@ -397,6 +398,7 @@ void encoderSpeedReaderCycle()
 
 	//mean all 15 Diff
 	MeanTime =sum / (float)(CAPTURENUM-1);
+	RPM = (60*1000000)/(float)(12*MeanTime*64);
 }
 
 uint64_t micros() //เวลาปัจจุบัน
